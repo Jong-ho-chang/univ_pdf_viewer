@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>대학 입시 요강 뷰어</title>
+  <!-- PDF.js CDN으로 변경 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <style>
+    body { 
+      font-family: sans-serif; 
+      margin: 20px; 
+      background-color: #f5f5f5;
+    }
+    
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h2 {
+      color: #333;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    .search-section {
+      margin-bottom: 20px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 5px;
+    }
+    
+    input[type="text"] {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      width: 200px;
+    }
+    
+    button {
+      padding: 8px 15px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-left: 5px;
+    }
+    
+    button:hover {
+      background-color: #0056b3;
+    }
+    
+    button:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
+    }
+    
+    #result-info {
+      margin-left: 10px;
+      font-weight: bold;
+      color: #28a745;
+    }
+    
+    .canvas-container {
+      text-align: center;
+      margin: 20px 0;
+    }
+    
+    canvas {
+      border: 1px solid #ccc;
+      display: block;
+      margin: 10px auto;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      max-width: 100%;
+      height: auto;
+    }
+    
+    .page-controls {
+      text-align: center;
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 5px;
+    }
+    
+    .page-controls button {
+      margin: 0 5px;
+    }
+    
+    .page-info {
+      margin: 0 15px;
+      font-weight: bold;
+      color: #333;
+    }
+    
+    .error-message {
+      color: #dc3545;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    
+    .loading {
+      text-align: center;
+      color: #6c757d;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>대학 입시 요강 PDF 뷰어</h2>
+
+    <div class="search-section">
+      <div style="margin-bottom: 10px;">
+        <input type="text" id="univ-input" placeholder="대학 이름 입력..." />
+        <button id="univ-btn">대학 조회</button>
+      </div>
+
+      <div>
+        <input type="text" id="keyword-input" placeholder="본문 키워드 검색..." />
+        <button id="keyword-btn">페이지 검색</button>
+        <span id="result-info"></span>
+      </div>
+    </div>
+
+    <div class="canvas-container">
+      <canvas id="pdf-canvas"></canvas>
+    </div>
+
+    <div class="page-controls">
+      <button id="prev-page">◀ 이전 페이지</button>
+      <span class="page-info">
+        <span id="page-num">1</span> / <span id="page-count">?</span>
+      </span>
+      <button id="next-page">다음 페이지 ▶</button>
+    </div>
+
+    <div id="error-message" class="error-message" style="display: none;"></div>
+    <div id="loading-message" class="loading" style="display: none;">로딩 중...</div>
+  </div>
+
+  <script>
+    // PDF.js 워커 설정
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      let pdfFiles = [];
+      let pageTexts = [];
+      let pdfDoc = null;
+      let currentPage = 1;
+
+      // DOM 요소들
+      const univInput = document.getElementById("univ-input");
+      const univBtn = document.getElementById("univ-btn");
+      const keywordInput = document.getElementById("keyword-input");
+      const keywordBtn = document.getElementById("keyword-btn");
+      const resultInfo = document.getElementById("result-info");
+      const canvas = document.getElementById("pdf-canvas");
+      const ctx = canvas.getContext("2d");
+      const prevBtn = document.getElementById("prev-page");
+      const nextBtn = document.getElementById("next-page");
+      const pageNumSpan = document.getElementById("page-num");
+      const pageCountSpan = document.getElementById("page-count");
+      const errorMessage = document.getElementById("error-message");
+      const loadingMessage = document.getElementById("loading-message");
+
+      // 에러 표시 함수
+      function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.style.display = 'block';
+        setTimeout(() => {
+          errorMessage.style.display = 'none';
+        }, 5000);
+      }
+
+      // 로딩 표시 함수
+      function showLoading(show) {
+        loadingMessage.style.display = show ? 'block' : 'none';
+      }
+
+      // 초기 설정
+      univBtn.disabled = true;
+      univInput.placeholder = "PDF 목록을 불러오는 중입니다...";
+      
+      console.log("PDF 뷰어 초기화 시작...");
+
+      // PDF 목록 로드
+      fetch('pdfs/index.json')
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          }
+          return res.json();
+        })
+        .then(data => {
+          console.log("PDF 목록 로드 성공:", data);
+          pdfFiles = data.files || [];
+          univBtn.disabled = false;
+          univInput.placeholder = "대학 이름 입력...";
+        })
+        .catch(err => {
+          console.error("PDF 목록 로드 실패:", err);
+          showError("PDF 목록을 불러올 수 없습니다: " + err.message);
+          univInput.placeholder = "PDF 목록 로딩 실패";
+        });
+
+      function renderPage(pageNum) {
+        if (!pdfDoc) return;
+
+        showLoading(true);
+        pdfDoc.getPage(pageNum).then(page => {
+          const viewport = page.getViewport({ scale: 1.5 });
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+
+          const renderContext = {
+            canvasContext: ctx,
+            viewport: viewport
+          };
+
+          page.render(renderContext).promise.then(() => {
+            showLoading(false);
+            pageNumSpan.textContent = pageNum;
+          });
+        }).catch(err => {
+          showLoading(false);
+          showError("페이지 렌더링 실패: " + err.message);
+        });
+      }
+
+      function loadPdf(fileName) {
+        const url = `pdfs/${fileName}`;
+        console.log("PDF 로드 시작:", url);
+        showLoading(true);
+
+        pdfjsLib.getDocument(url).promise.then(pdf => {
+          console.log("PDF 로드 성공");
+          pdfDoc = pdf;
+          currentPage = 1;
+          pageCountSpan.textContent = pdf.numPages;
+
+          // 모든 페이지의 텍스트 추출
+          pageTexts = [];
+          const textPromises = [];
+
+          for (let i = 1; i <= pdf.numPages; i++) {
+            textPromises.push(
+              pdf.getPage(i)
+                .then(p => p.getTextContent())
+                .then(tc => {
+                  const pageText = tc.items.map(it => it.str).join(" ");
+                  pageTexts[i - 1] = pageText;
+                })
+                .catch(err => {
+                  console.error(`페이지 ${i} 텍스트 추출 실패:`, err);
+                  pageTexts[i - 1] = "";
+                })
+            );
+          }
+
+          Promise.all(textPromises).then(() => {
+            console.log("텍스트 추출 완료");
+            renderPage(currentPage);
+          });
+        }).catch(err => {
+          showLoading(false);
+          console.error("PDF 로드 실패:", err);
+          showError("PDF 파일을 찾을 수 없습니다: " + err.message);
+        });
+      }
+
+      function normalize(text) {
+        return text.toLowerCase().replace(/\s+/g, '').replace(/[()\-_]/g, '');
+      }
+
+      function loadPdfByKeyword(keyword) {
+        if (!pdfFiles || pdfFiles.length === 0) {
+          showError("PDF 목록이 아직 준비되지 않았습니다.");
+          return;
+        }
+
+        const normKeyword = normalize(keyword);
+        const match = pdfFiles.find(name => normalize(name).includes(normKeyword));
+
+        if (!match) {
+          showError("해당하는 대학을 찾을 수 없습니다.");
+          return;
+        }
+
+        console.log("매칭된 파일:", match);
+        loadPdf(match);
+      }
+
+      // 이벤트 리스너
+      univBtn.addEventListener("click", () => {
+        const keyword = univInput.value.trim();
+        if (keyword) {
+          loadPdfByKeyword(keyword);
+        }
+      });
+
+      univInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          const keyword = univInput.value.trim();
+          if (keyword) {
+            loadPdfByKeyword(keyword);
+          }
+        }
+      });
+
+      keywordBtn.addEventListener("click", () => {
+        if (!pdfDoc) {
+          showError("먼저 PDF를 로드해주세요.");
+          return;
+        }
+
+        const keyword = keywordInput.value.trim();
+        if (!keyword) return;
+
+        const pageIndex = pageTexts.findIndex(text => 
+          text.toLowerCase().includes(keyword.toLowerCase())
+        );
+
+        if (pageIndex !== -1) {
+          currentPage = pageIndex + 1;
+          renderPage(currentPage);
+          resultInfo.textContent = `페이지 ${currentPage}에서 발견`;
+          resultInfo.style.color = "#28a745";
+        } else {
+          resultInfo.textContent = "검색 결과 없음";
+          resultInfo.style.color = "#dc3545";
+        }
+      });
+
+      prevBtn.addEventListener("click", () => {
+        if (currentPage <= 1) return;
+        currentPage--;
+        renderPage(currentPage);
+      });
+
+      nextBtn.addEventListener("click", () => {
+        if (!pdfDoc || currentPage >= pdfDoc.numPages) return;
+        currentPage++;
+        renderPage(currentPage);
+      });
+
+      console.log("이벤트 리스너 등록 완료");
+    });
+  </script>
+</body>
+</html>

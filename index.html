@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>대학 입시 요강 뷰어</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f7f9; /* 안정적인 연한 회색 배경 */
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .main-container {
+      max-width: 1200px;
+      margin: 20px auto;
+      background: #ffffff; /* 깔끔한 흰색 배경 */
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+    }
+    
+    .header {
+      background: #2c3e50; /* 전문적인 느낌의 딥 네이비 */
+      color: white;
+      padding: 25px;
+      text-align: center;
+    }
+    
+    h2 {
+      font-size: 2rem;
+      font-weight: 400;
+      letter-spacing: 1px;
+      margin: 0;
+    }
+    
+    .content {
+      padding: 30px;
+    }
+    
+    .search-section {
+      background: #ecf0f1; /* 부드러운 회색 */
+      padding: 25px;
+      border-radius: 10px;
+      margin-bottom: 30px;
+    }
+    
+    .search-row {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .search-row:last-child {
+      margin-bottom: 0;
+    }
+    
+    input[type="text"], select {
+      flex: 1;
+      min-width: 250px;
+      padding: 12px 20px;
+      border: 1px solid #dcdfe6;
+      border-radius: 25px;
+      font-size: 16px;
+      background: #ffffff;
+      transition: all 0.3s ease;
+    }
+    
+    input[type="text"]:focus, select:focus {
+      outline: none;
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    }
+    
+    button {
+      padding: 12px 25px;
+      border: none;
+      border-radius: 25px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    #univ-btn, #keyword-btn, #next-match-btn {
+      background: #3498db; /* 통일된 파란색 버튼 */
+      color: white;
+      box-shadow: 0 4px 15px rgba(52, 152, 219, 0.2);
+    }
+    
+    #univ-btn:hover, #keyword-btn:hover, #next-match-btn:hover {
+      background: #2980b9;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(52, 152, 219, 0.3);
+    }
+    
+    button:disabled {
+      background: #bdc3c7; /* 비활성화 버튼 색상 */
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    #result-info {
+      margin-left: 15px;
+      font-weight: bold;
+      color: #34495e;
+      padding: 8px 15px;
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: 15px;
+    }
+    
+    .canvas-container {
+      position: relative; /* 하이라이트 레이어를 위한 설정 */
+      display: flex;
+      justify-content: center;
+      margin: 30px 0;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      background-color: #fafafa;
+      min-height: 800px;
+    }
+    
+    canvas {
+      display: block;
+      position: absolute;  /* ✅ 추가 필요 */
+      top: 0;
+      left: 0;
+      border-radius: 10px;
+      max-width: 100%;
+      height: auto;
+    }
+    
+    .page-controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      padding: 20px;
+      background: #ffffff;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      margin-top: 30px;
+      flex-wrap: wrap;
+    }
+    
+    .page-controls button {
+      background: #7f8c8d; /* 페이지 컨트롤 버튼 색상 */
+      color: white;
+      padding: 10px 20px;
+      font-size: 14px;
+    }
+    
+    .page-controls button:hover {
+      background: #6c7a7b;
+      transform: translateY(-2px);
+    }
+    
+    .page-info {
+      font-size: 18px;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    
+    /* 애니메이션 효과 */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .main-container {
+      animation: fadeInUp 0.6s ease-out;
+    }
+    
+    /* 반응형 디자인 */
+    @media (max-width: 768px) {
+      body {
+        padding: 10px;
+      }
+      h2 {
+        font-size: 1.8rem;
+      }
+      .header, .content {
+        padding: 20px;
+      }
+      .search-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      input[type="text"], select {
+        min-width: auto;
+      }
+      .page-controls {
+        flex-direction: column;
+        gap: 15px;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="main-container">
+    <div class="header">
+      <h2>🎓 대학 입시 요강 PDF 뷰어</h2>
+    </div>
+    
+    <div class="content">
+      <div class="search-section">
+        <div class="search-row">
+          <input type="text" id="univ-input" placeholder="🏫 원하는 대학 이름을 입력하세요...">
+          <button id="univ-btn">🔍 조회</button>
+        </div>
+        <div class="search-row" id="univ-select-container" style="display: none;">
+          <select id="univ-select"></select>
+        </div>
+
+        <div class="search-row">
+          <input type="text" id="keyword-input" placeholder="📖 검색할 키워드를 입력하세요... (엔터키로 다음 결과)">
+          <button id="keyword-btn">🔎 검색</button>
+          <button id="next-match-btn">다음 결과 ▶️</button>
+          <span id="result-info"></span>
+        </div>
+      </div>
+
+      <div class="canvas-container">
+        <canvas id="pdf-canvas"></canvas>
+      </div>
+
+      <div class="page-controls">
+        <button id="prev-page">⬅️ 이전 페이지</button>
+        <div class="page-info">
+          📄 <span id="page-num">1</span> / <span id="page-count">?</span>
+        </div>
+        <button id="next-page">다음 페이지 ➡️</button>
+        <select id="page-select" style="padding: 10px 15px; font-size: 16px; border-radius: 10px;"></select>
+      </div>
+    </div>
+  </div>
+
+  <script src="viewer.js"></script>
+</body>
+</html>

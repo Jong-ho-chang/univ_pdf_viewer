@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>대학 입시 요강 뷰어 - 디버그</title>
+  <!-- PDF.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <style>
+    body { 
+      font-family: sans-serif; 
+      margin: 20px; 
+      background-color: #f5f5f5;
+    }
+    
+    .debug-panel {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 5px;
+    }
+    
+    .debug-item {
+      margin: 5px 0;
+      padding: 5px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    
+    .success { background-color: #d4edda; color: #155724; }
+    .error { background-color: #f8d7da; color: #721c24; }
+    .info { background-color: #d1ecf1; color: #0c5460; }
+    
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    input[type="text"] {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      width: 200px;
+    }
+    
+    button {
+      padding: 8px 15px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-left: 5px;
+    }
+    
+    button:hover { background-color: #0056b3; }
+    button:disabled { 
+      background-color: #6c757d; 
+      cursor: not-allowed; 
+    }
+    
+    canvas {
+      border: 1px solid #ccc;
+      display: block;
+      margin: 10px auto;
+      max-width: 100%;
+    }
+    
+    .page-controls {
+      text-align: center;
+      margin-top: 15px;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>대학 입시 요강 PDF 뷰어 - 디버그 모드</h2>
+
+    <!-- 디버그 패널 -->
+    <div class="debug-panel">
+      <h3>시스템 상태 체크</h3>
+      <div id="debug-info"></div>
+      <button onclick="runDiagnostics()">진단 실행</button>
+      <button onclick="testIndexJson()">index.json 테스트</button>
+      <button onclick="listPdfFiles()">PDF 파일 목록 확인</button>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <input type="text" id="univ-input" placeholder="대학 이름 입력..." />
+      <button id="univ-btn">대학 조회</button>
+      <span id="univ-status" style="margin-left: 10px; font-weight: bold;"></span>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <input type="text" id="keyword-input" placeholder="본문 키워드 검색..." />
+      <button id="keyword-btn">페이지 검색</button>
+      <span id="result-info" style="margin-left: 10px; font-weight: bold;"></span>
+    </div>
+
+    <canvas id="pdf-canvas" style="display: none;"></canvas>
+
+    <div class="page-controls" style="display: none;" id="page-controls">
+      <button id="prev-page">◀ 이전</button>
+      <span id="page-num">1</span> / <span id="page-count">?</span>
+      <button id="next-page">다음 ▶</button>
+    </div>
+  </div>
+
+  <script>
+    // 전역 변수
+    let pdfFiles = [];
+    let pageTexts = [];
+    let pdfDoc = null;
+    let currentPage = 1;
+
+    // 디버그 로그 함수
+    function debugLog(message, type = 'info') {
+      const debugInfo = document.getElementById('debug-info');
+      const div = document.createElement('div');
+      div.className = `debug-item ${type}`;
+      div.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+      debugInfo.appendChild(div);
+      console.log(message);
+    }
+
+    // PDF.js 워커 설정
+    function setupPdfJs() {
+      if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        debugLog('PDF.js 라이브러리 로드 성공', 'success');
+        return true;
+      } else {
+        debugLog('PDF.js 라이브러리 로드 실패', 'error');
+        return false;
+      }
+    }
+
+    // 종합 진단 실행
+    function runDiagnostics() {
+      document.getElementById('debug-info').innerHTML = '';
+      
+      // 1. PDF.js 체크
+      if (setupPdfJs()) {
+        debugLog('✓ PDF.js 사용 가능', 'success');
+      } else {
+        debugLog('✗ PDF.js 사용 불가', 'error');
+        return;
+      }
+
+      // 2. DOM 요소 체크
+      const elements = [
+        'univ-input', 'univ-btn', 'keyword-input', 
+        'keyword-btn', 'pdf-canvas', 'prev-page', 
+        'next-page', 'page-num', 'page-count'
+      ];
+      
+      elements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+          debugLog(`✓ ${id} 요소 존재`, 'success');
+        } else {
+          debugLog(`✗ ${id} 요소 없음`, 'error');
+        }
+      });
+
+      // 3. 현재 URL과 경로 체크
+      debugLog(`현재 URL: ${window.location.href}`, 'info');
+      debugLog(`현재 프로토콜: ${window.location.protocol}`, 'info');
+      
+      if (window.location.protocol === 'file:') {
+        debugLog('⚠ file:// 프로토콜 사용 중 - 서버 필요할 수 있음', 'error');
+      }
+    }
+
+    // index.json 테스트
+    async function testIndexJson() {
+      debugLog('index.json 로드 시도...', 'info');
+      
+      try {
+        const response = await fetch('pdfs/index.json');
+        debugLog(`응답 상태: ${response.status} ${response.statusText}`, 
+                 response.ok ? 'success' : 'error');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        debugLog(`JSON 파싱 성공: ${JSON.stringify(data)}`, 'success');
+        
+        if (data.files && Array.isArray(data.files)) {
+          debugLog(`PDF 파일 ${data.files.length}개 발견`, 'success');
+          pdfFiles = data.files;
+          
+          // UI 업데이트
+          const univBtn = document.getElementById('univ-btn');
+          const univInput = document.getElementById('univ-input');
+          univBtn.disabled = false;
+          univInput.placeholder = "대학 이름 입력...";
+          
+          return data.files;
+        } else {
+          debugLog('files 배열이 없거나 잘못된 형식', 'error');
+        }
+      } catch (error) {
+        debugLog(`index.json 로드 실패: ${error.message}`, 'error');
+      }
+    }
+
+    // PDF 파일 목록 확인
+    function listPdfFiles() {
+      if (pdfFiles.length === 0) {
+        debugLog('PDF 파일 목록이 비어있음 - 먼저 index.json을 테스트하세요', 'error');
+        return;
+      }
+      
+      debugLog('현재 PDF 파일 목록:', 'info');
+      pdfFiles.forEach((file, index) => {
+        debugLog(`${index + 1}. ${file}`, 'info');
+      });
+    }
+
+    // PDF 로드 테스트
+    async function testPdfLoad(fileName) {
+      const url = `pdfs/${fileName}`;
+      debugLog(`PDF 로드 시도: ${url}`, 'info');
+      
+      try {
+        const pdf = await pdfjsLib.getDocument(url).promise;
+        debugLog(`PDF 로드 성공: ${pdf.numPages}페이지`, 'success');
+        
+        // 캔버스 표시
+        const canvas = document.getElementById('pdf-canvas');
+        const pageControls = document.getElementById('page-controls');
+        canvas.style.display = 'block';
+        pageControls.style.display = 'block';
+        
+        return pdf;
+      } catch (error) {
+        debugLog(`PDF 로드 실패: ${error.message}`, 'error');
+      }
+    }
+
+    // 정규화 함수
+    function normalize(text) {
+      return text.toLowerCase().replace(/\s+/g, '').replace(/[()\-_]/g, '');
+    }
+
+    // 대학 검색
+    function searchUniversity(keyword) {
+      debugLog(`대학 검색: "${keyword}"`, 'info');
+      
+      if (pdfFiles.length === 0) {
+        debugLog('PDF 파일 목록이 없음', 'error');
+        return;
+      }
+      
+      const normKeyword = normalize(keyword);
+      debugLog(`정규화된 키워드: "${normKeyword}"`, 'info');
+      
+      // 모든 파일과 비교 과정 표시
+      pdfFiles.forEach(file => {
+        const normFile = normalize(file);
+        const match = normFile.includes(normKeyword);
+        debugLog(`"${file}" -> "${normFile}" : ${match ? '매치' : '불일치'}`, 
+                match ? 'success' : 'info');
+      });
+      
+      const match = pdfFiles.find(name => normalize(name).includes(normKeyword));
+      
+      if (match) {
+        debugLog(`매칭된 파일: ${match}`, 'success');
+        testPdfLoad(match);
+      } else {
+        debugLog('매칭되는 파일 없음', 'error');
+      }
+    }
+
+    // 페이지 로드 시 초기화
+    document.addEventListener('DOMContentLoaded', () => {
+      debugLog('페이지 로드 완료', 'success');
+      
+      // 자동 진단 실행
+      setTimeout(() => {
+        runDiagnostics();
+        testIndexJson();
+      }, 500);
+      
+      // 이벤트 리스너 등록
+      const univBtn = document.getElementById('univ-btn');
+      const univInput = document.getElementById('univ-input');
+      
+      univBtn.addEventListener('click', () => {
+        const keyword = univInput.value.trim();
+        if (keyword) {
+          searchUniversity(keyword);
+        }
+      });
+      
+      univInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const keyword = univInput.value.trim();
+          if (keyword) {
+            searchUniversity(keyword);
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
