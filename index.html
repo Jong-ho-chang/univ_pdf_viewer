@@ -75,36 +75,24 @@
     .canvas-container {
       position: relative;
       width: 100%;
-      overflow: auto;
       background: #fafafa;
       padding: 10px;
       border-radius: 10px;
       border: 1px solid #ddd;
+      overflow-y: auto;
+      max-height: 80vh;
     }
-    #pdf-canvas {
-      display: block;
+    #scroll-container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      align-items: center;
+    }
+    canvas {
       width: 100%;
       height: auto;
       max-width: 100%;
-      margin: auto;
-    }
-    #highlight-layer {
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 10;
-      pointer-events: none;
-    }
-    .page-controls {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 10px;
-      margin-top: 20px;
-    }
-    .page-info {
-      font-size: 16px;
-      font-weight: bold;
+      border-radius: 10px;
     }
 
     /* 반응형 */
@@ -119,7 +107,8 @@
 <body>
   <div class="main-container">
     <div class="header">
-      <h2>🎓 대학 입시 요강 PDF 뷰어</h2>
+      <h2>🎓 대학 입시 요강 뷰어 </h2>
+      <p>용인삼계고 3학년부 제공</p>
     </div>
     <div class="content">
       <div class="search-section">
@@ -131,7 +120,7 @@
           <select id="univ-select"></select>
         </div>
         <div class="search-row">
-          <input type="text" id="keyword-input" placeholder="🔍 키워드 입력">
+          <input type="text" id="keyword-input" placeholder="🔍 모집요강에서 검색하고 싶은 단어 입력">
           <button id="keyword-btn">검색</button>
           <button id="next-match-btn">다음 ▶</button>
           <span id="result-info"></span>
@@ -139,17 +128,7 @@
       </div>
 
       <div class="canvas-container">
-        <canvas id="pdf-canvas"></canvas>
-        <div id="highlight-layer"></div>
-      </div>
-
-      <div class="page-controls">
-        <button id="prev-page">⬅ 이전</button>
-        <div class="page-info">
-          📄 <span id="page-num">1</span> / <span id="page-count">?</span>
-        </div>
-        <button id="next-page">다음 ➡</button>
-        <select id="page-select"></select>
+        <div id="scroll-container"></div>
       </div>
     </div>
   </div>
