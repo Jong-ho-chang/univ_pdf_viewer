@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>대학 입시 요강 뷰어</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
   <style>
     * {
@@ -73,20 +74,26 @@
     }
     .canvas-container {
       position: relative;
-      display: flex;
-      justify-content: center;
       width: 100%;
-      overflow-x: auto;
+      overflow: auto;
       background: #fafafa;
       padding: 10px;
       border-radius: 10px;
       border: 1px solid #ddd;
     }
-    canvas {
+    #pdf-canvas {
+      display: block;
       width: 100%;
-      max-width: 100%;
       height: auto;
-      border-radius: 10px;
+      max-width: 100%;
+      margin: auto;
+    }
+    #highlight-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 10;
+      pointer-events: none;
     }
     .page-controls {
       display: flex;
@@ -133,6 +140,7 @@
 
       <div class="canvas-container">
         <canvas id="pdf-canvas"></canvas>
+        <div id="highlight-layer"></div>
       </div>
 
       <div class="page-controls">
