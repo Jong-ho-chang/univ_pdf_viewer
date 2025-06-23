@@ -30,6 +30,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let scale = 1.5;
 
+  function updateScaleToFit(viewport) {
+    const containerWidth = canvasContainer.clientWidth;
+    const desiredScale = containerWidth / viewport.width;
+    return desiredScale;
+  }
+
   function createHighlightLayer() {
     let layer = document.getElementById("highlight-layer");
     if (!layer) {
@@ -56,6 +62,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderPage(num, callback) {
     pdfDoc.getPage(num).then(page => {
+      const initialViewport = page.getViewport({ scale: 1 });
+      scale = updateScaleToFit(initialViewport);
       const viewport = page.getViewport({ scale });
       canvas.height = viewport.height;
       canvas.width = viewport.width;
@@ -237,4 +245,11 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("PDF 목록 로드 오류:", err);
       univInput.placeholder = "PDF 목록 로딩 실패";
     });
+
+  // 모바일 대응: 창 크기 변경 시 자동 리렌더링
+  window.addEventListener("resize", () => {
+    if (pdfDoc && currentPage) {
+      renderPage(currentPage);
+    }
+  });
 });
