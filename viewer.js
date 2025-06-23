@@ -208,6 +208,7 @@ document.addEventListener("DOMContentLoaded", () => {
     univSelectContainer.style.display = "flex";
 
     if (matched.length === 1) {
+      univSelect.selectedIndex = 0;
       loadPdf(`pdfs/${matched[0]}`);
     }
   }
